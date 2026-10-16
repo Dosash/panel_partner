@@ -1,0 +1,32 @@
+# секреты и данные — никогда не в репозиторий
+.env
+.env.*
+!.env.example
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# бэкапы (экспорт JSON из панели)
+backups/
+partners-export-*.json
+
+# окружение и кэш
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# локальные файлы разработки (спецификации, настройки ИИ-ассистента, редактора)
+SPEC*.md
+AGENTS.md
+CLAUDE.md
+.claude/
+.idea/
+.vscode/
+*.log
+.DS_Store
+
+# локальные материалы (дизайн-контракт сервера владельца и т. п.)
+.dev/

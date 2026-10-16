@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+data/
+.env
+.env.*
+.git/
+.claude/
+.dev/
+tests/
+docs/
+backups/
+*.json
+SPEC*.md
+AGENTS.md
+CLAUDE.md

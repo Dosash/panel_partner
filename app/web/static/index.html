@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ru" data-app="partners">
+<head>
+  <meta charset="utf-8">
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="panel-hub" content="">
+  <meta name="panel-version" content="">
+  <title>Партнёрки — панель</title>
+  <link rel="icon" type="image/svg+xml" href="static/favicon.svg">
+  <link rel="stylesheet" href="static/style.css">
+  <script>
+    // Theme before the first paint: shared key "panel-theme" = light | dark | system.
+    (function () {
+      try {
+        var t = window.localStorage.getItem('panel-theme');
+        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) { /* storage blocked: follow the system theme */ }
+    })();
+  </script>
+  <script src="static/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#view">К содержимому</a>
+
+  <div class="app" id="app">
+    <aside class="sidebar" id="sidebar" aria-label="Главное меню">
+      <a class="back" id="hub-link" href="/" hidden><span data-icon="back"></span><span>Все панели</span></a>
+      <a class="product" href="#/" aria-label="Партнёрки — обзор">
+        <span class="product-logo" data-icon="handshake"></span>
+        <span class="product-text">
+          <span class="product-name">Партнёрки</span>
+          <span class="product-sub">Партнёрские программы</span>
+        </span>
+      </a>
+      <nav class="nav" aria-label="Разделы">
+        <div class="nav-group">
+          <div class="nav-label">Программы</div>
+          <a class="nav-item" href="#/" data-nav="overview"><span data-icon="dashboard"></span><span>Обзор</span></a>
+          <a class="nav-item" href="#/programs" data-nav="programs"><span data-icon="list"></span><span>Программы</span><span class="count" id="nav-count" hidden></span></a>
+          <a class="nav-item" href="#/new" data-nav="new"><span data-icon="plus"></span><span>Добавить</span></a>
+        </div>
+        <div class="nav-group">
+          <div class="nav-label">Система</div>
+          <a class="nav-item" href="#/settings" data-nav="settings"><span data-icon="settings"></span><span>Настройки</span></a>
+        </div>
+      </nav>
+      <div class="sidebar-bottom">
+        <button type="button" class="btn btn-ghost btn-sm btn-icon" id="theme-toggle" aria-label="Тема оформления"></button>
+        <span class="version" id="app-version"></span>
+      </div>
+    </aside>
+    <div class="backdrop" id="backdrop" hidden></div>
+
+    <div class="main">
+      <header class="topbar">
+        <button type="button" class="btn btn-ghost btn-icon burger" id="burger" aria-label="Открыть меню" aria-controls="sidebar" aria-expanded="false"><span data-icon="menu"></span></button>
+        <div class="topbar-text">
+          <h1 id="page-title" tabindex="-1">Партнёрки</h1>
+          <p class="topbar-sub" id="page-sub" hidden></p>
+        </div>
+        <div class="topbar-actions" id="page-actions"></div>
+        <button type="button" class="status-pill badge" id="status-pill" aria-label="Состояние панели"><span class="dot" aria-hidden="true"></span><span class="status-label">Проверка…</span></button>
+      </header>
+      <main id="view" class="content" tabindex="-1"></main>
+    </div>
+  </div>
+
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+
+  <noscript>
+    <p class="noscript">Для работы панели нужен JavaScript.</p>
+  </noscript>
+</body>
+</html>
