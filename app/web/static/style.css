@@ -884,6 +884,10 @@ button.tag:hover { background: var(--accent-soft); color: var(--accent); }
 .link-promo code { padding: 1px 6px; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 .link-note { color: var(--text-3); font-size: var(--fs-xs); overflow-wrap: anywhere; }
 .link-actions { display: inline-flex; gap: 2px; }
+/* The program page shows links in the narrow right column: buttons go under the link, the URL wraps whole. */
+.prog-page .link-item { grid-template-columns: minmax(0, 1fr); align-items: start; }
+.prog-page .link-url { white-space: normal; overflow-wrap: anywhere; }
+.prog-page .link-actions { flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .danger-zone { border-color: color-mix(in srgb, var(--danger) 35%, var(--border)); }
 .danger-zone h2 .i { color: var(--danger); }
 

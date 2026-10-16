@@ -1040,10 +1040,6 @@
             ${p.description ? `<h2 class="small muted" style="margin:16px 0 6px;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Что делает</h2><p class="text-block">${esc(p.description)}</p>` : '<p class="muted" style="margin-top:12px">Описание не заполнено.</p>'}
             ${tagList(p.tags, false) ? `<div style="margin-top:14px">${tagList(p.tags, false)}</div>` : ''}
           </section>
-          <section class="card">
-            <div class="card-head"><h2>${icon('link')}Ссылки <span class="count">${fmtNum(links.length)}</span></h2></div>
-            ${links.length ? `<ul class="links-list">${links.map(linkItem).join('')}</ul>` : `<div class="empty"><div class="empty-icon">${icon('link')}</div><h3>Ссылок пока нет</h3><p>Добавьте реферальные ссылки и промокоды в редакторе программы.</p><div class="empty-actions"><a class="btn btn-secondary btn-sm" href="#/programs/${p.id}/edit">${icon('plus')}<span>Добавить ссылки</span></a></div></div>`}
-          </section>
           ${p.notes ? `<section class="card"><div class="card-head"><h2>${icon('note')}Заметки</h2></div><p class="text-block">${esc(p.notes)}</p></section>` : ''}
         </div>
         <div class="col">
@@ -1064,6 +1060,10 @@
               ${kvRow('Логин', p.login ? `<span class="inline-copy"><span class="mono">${esc(p.login)}</span><button type="button" class="icon-btn sm" data-action="copy" data-text="${esc(p.login)}" data-what="Логин" aria-label="Копировать" title="Копировать">${icon('copy')}</button></span>` : '')}
             </dl>` : '<p class="muted">Сайт и кабинет не указаны.</p>'}
             <p class="hint">${icon('lock')}Пароли здесь не хранятся — используйте менеджер паролей.</p>
+          </section>
+          <section class="card">
+            <div class="card-head"><h2>${icon('link')}Ссылки <span class="count">${fmtNum(links.length)}</span></h2></div>
+            ${links.length ? `<ul class="links-list">${links.map(linkItem).join('')}</ul>` : `<div class="empty"><div class="empty-icon">${icon('link')}</div><h3>Ссылок пока нет</h3><p>Добавьте реферальные ссылки и промокоды в редакторе программы.</p><div class="empty-actions"><a class="btn btn-secondary btn-sm" href="#/programs/${p.id}/edit">${icon('plus')}<span>Добавить ссылки</span></a></div></div>`}
           </section>
           <section class="card">
             <div class="card-head"><h2>${icon('clock')}История</h2></div>
