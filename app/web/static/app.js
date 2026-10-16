@@ -1043,15 +1043,15 @@
           ${p.notes ? `<section class="card"><div class="card-head"><h2>${icon('note')}Заметки</h2></div><p class="text-block">${esc(p.notes)}</p></section>` : ''}
         </div>
         <div class="col">
-          <section class="card">
+          ${(p.payout_model || p.payout_terms || p.payout_min || p.payout_method) ? `<section class="card">
             <div class="card-head"><h2>${icon('wallet')}Выплаты</h2></div>
-            ${(p.payout_model || p.payout_terms || p.payout_min || p.payout_method) ? `<dl class="kv">
+            <dl class="kv">
               ${kvRow('Модель', p.payout_model ? `<b>${esc(p.payout_model)}</b>` : '')}
               ${kvRow('Условия', p.payout_terms ? `<span class="text-block">${esc(p.payout_terms)}</span>` : '')}
               ${kvRow('Минимум', esc(p.payout_min))}
               ${kvRow('Способ', esc(p.payout_method))}
-            </dl>` : '<p class="muted">Условия выплат не указаны.</p>'}
-          </section>
+            </dl>
+          </section>` : ''}
           <section class="card">
             <div class="card-head"><h2>${icon('globe')}Доступ</h2></div>
             ${(p.website_url || p.cabinet_url || p.login) ? `<dl class="kv">
