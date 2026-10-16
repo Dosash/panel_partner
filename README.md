@@ -13,6 +13,21 @@
   предупреждение, если уйти со страницы с несохранёнными правками.
 - **Настройки** — экспорт и импорт JSON-бэкапа, тема оформления (системная / светлая / тёмная), версия.
 
+**Как это выглядит** (на скриншотах — демо-данные, нажмите, чтобы открыть в полном размере):
+
+<table>
+  <tr>
+    <td align="center" valign="top"><a href="docs/screenshots/overview.png"><img src="docs/screenshots/overview.png" alt="Партнёрки — Обзор" width="260"></a><br><sub>Обзор</sub></td>
+    <td align="center" valign="top"><a href="docs/screenshots/programs.png"><img src="docs/screenshots/programs.png" alt="Партнёрки — Программы" width="260"></a><br><sub>Программы</sub></td>
+    <td align="center" valign="top"><a href="docs/screenshots/program.png"><img src="docs/screenshots/program.png" alt="Партнёрки — Карточка программы" width="260"></a><br><sub>Карточка программы</sub></td>
+  </tr>
+  <tr>
+    <td align="center" valign="top"><a href="docs/screenshots/edit.png"><img src="docs/screenshots/edit.png" alt="Партнёрки — Редактирование" width="260"></a><br><sub>Редактирование</sub></td>
+    <td align="center" valign="top"><a href="docs/screenshots/settings.png"><img src="docs/screenshots/settings.png" alt="Партнёрки — Настройки и бэкап" width="260"></a><br><sub>Настройки и бэкап</sub></td>
+    <td></td>
+  </tr>
+</table>
+
 > **Пароли в панели не храните.** Для доступа к кабинетам есть поле «Логин» — только логин или e-mail.
 > Пароли держите в менеджере паролей. У панели нет собственной авторизации: не открывайте её в интернет
 > без nginx с паролем или VPN.
@@ -22,7 +37,7 @@
 Python 3.13, [aiohttp](https://docs.aiohttp.org/), [aiosqlite](https://github.com/omnilib/aiosqlite)
 (SQLite в режиме WAL, миграции через `PRAGMA user_version`), python-dotenv, [uv](https://docs.astral.sh/uv/)
 для зависимостей, pytest. Фронтенд — обычный JavaScript без сборки (hash-роутинг, статика из
-`app/static`), без внешних ресурсов: панель работает с `Content-Security-Policy: default-src 'self'`.
+`app/web/static`), без внешних ресурсов: панель работает с `Content-Security-Policy: default-src 'self'`.
 
 ## Запуск локально
 
@@ -41,6 +56,9 @@ uv run pytest
 ```
 
 ## Запуск в Docker
+
+Нужен сервер с Linux, Docker и Docker Compose — подойдёт самый простой VPS, например
+[FirstVDS](https://firstvds.ru/?from=1187253). Панель лёгкая: хватает 128 МБ памяти.
 
 ```bash
 cp .env.example .env
@@ -151,9 +169,31 @@ app/programs.py     валидация полей программы и ссыл
 app/web/            aiohttp-приложение: api.py (JSON API), pages.py (index.html + редиректы), urls.py (префикс)
 app/web/static/     index.html, app.js, style.css, favicon.svg — панель без сборки
 tests/              pytest (API, префикс, конфиг, БД)
+docs/screenshots/   скриншоты для README (демо-данные)
 data/               база (создаётся сама; в git не попадает)
 ```
 
 ## Лицензия
 
-MIT — см. [LICENSE](LICENSE).
+Проект распространяется под лицензией [MIT](LICENSE): его можно свободно использовать, изменять и распространять,
+в том числе в коммерческих целях, при условии сохранения текста лицензии и указания авторства.
+
+## Благодарность автору
+
+Если панель вам пригодилась, я буду благодарен за ссылку на автора ([Dosash](https://github.com/Dosash)) или на этот репозиторий
+([github.com/Dosash/panel_partner](https://github.com/Dosash/panel_partner)): в описании своего проекта, в канале или в своей сборке
+на основе этого кода. Это не обязательно, но очень приятно. ⭐ на GitHub тоже помогает.
+
+## Поддержка
+
+Вопросы, идеи и сообщения об ошибках — в [Issues](https://github.com/Dosash/panel_partner/issues) или на любой из площадок ниже:
+
+[![dosash.ru](https://img.shields.io/badge/dosash.ru-0b0f19?style=for-the-badge&logo=googlechrome&logoColor=00e5ff)](https://dosash.ru)
+[![Twitch](https://img.shields.io/badge/Twitch-9146FF?style=for-the-badge&logo=twitch&logoColor=white)](https://twitch.tv/dosash)
+[![Kick](https://img.shields.io/badge/Kick-53FC18?style=for-the-badge&logo=kick&logoColor=black)](https://kick.com/dosash1)
+[![YouTube](https://img.shields.io/badge/YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://youtube.com/@dosash)
+[![Discord](https://img.shields.io/badge/RedImpact-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/WubwwU2bpM)
+
+## 💖 Поддержать
+
+Если панель пригодилась: [CloudTips](https://pay.cloudtips.ru/p/894f4248) (карта) или [Telegram-кошелёк](https://t.me/send?start=IVoQmPAfgWnM) (крипта).
