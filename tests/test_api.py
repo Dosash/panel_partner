@@ -14,7 +14,7 @@ async def test_health_and_counts(client):
     assert res.headers["X-Frame-Options"] == "DENY"
     assert res.headers["Referrer-Policy"] == "same-origin"
     body = await res.json()
-    assert body == {"status": "ok", "version": body["version"], "programs": 0, "links": 0}
+    assert body == {"status": "ok", "version": body["version"], "auth": False, "programs": 0, "links": 0}
 
     await client.post("/api/programs", json=sample_program())
     body = await (await client.get("/api/health")).json()
@@ -267,3 +267,15 @@ async def test_api_errors_are_json(client):
     res = await client.delete("/api/programs")
     assert res.status == 405
     assert (await res.json())["error"] == "Метод не поддерживается"
+
+
+async def test_mutations_need_csrf_header(db):
+    from tests.conftest import make_client, make_config
+    from app.web import create_web_app
+
+    async with make_client(create_web_app(db, make_config()), csrf=False) as bare:
+        res = await bare.post("/api/programs", json=sample_program())
+        assert res.status == 403
+        assert "X-Requested-With" in (await res.json())["error"]
+        assert (await bare.get("/api/programs")).status == 200
+        assert (await bare.get("/api/health")).status == 200

@@ -139,6 +139,9 @@
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     sparkles: '<path d="M9.94 15.5a2 2 0 0 0-1.44-1.44l-6.13-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0L14.06 8.5a2 2 0 0 0 1.44 1.44l6.14 1.58a.5.5 0 0 1 0 .96L15.5 14.06a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0z"/><path d="M20 3v4M22 5h-4M4 17v2M5 18H3"/>',
     save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/>',
+    logout: '<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="m10 17-5-5 5-5"/><path d="M5 12h11"/>',
+    key: '<circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.8-9.8"/><path d="m16 7 3 3"/><path d="m18.5 4.5 2 2"/>',
+    shield: '<path d="M12 3 4 6v6c0 4.4 3.4 8.1 8 9 4.6-.9 8-4.6 8-9V6z"/><path d="m9 12 2 2 4-4"/>',
   };
 
   function icon(name, cls = '') {
@@ -155,8 +158,12 @@
     }
   }
 
+  // Set by the shell: called when the API answers 401 (the password is enabled and the session is gone).
+  let onAuthRequired = null;
+
   async function request(method, path, body) {
-    const init = { method, headers: { Accept: 'application/json' }, cache: 'no-store' };
+    // X-Requested-With is the CSRF check of the API (every non-GET request needs it).
+    const init = { method, headers: { Accept: 'application/json', 'X-Requested-With': 'fetch' }, cache: 'no-store', credentials: 'same-origin' };
     if (body !== undefined) {
       init.headers['Content-Type'] = 'application/json';
       init.body = JSON.stringify(body);
@@ -174,6 +181,12 @@
     }
     if (!res.ok) {
       const message = (data && data.error) || `Ошибка ${res.status}`;
+      if (res.status === 401 && data && data.auth_required && onAuthRequired) {
+        onAuthRequired();
+        const err = new ApiError(message, 401);
+        err.silent = true;
+        throw err;
+      }
       throw new ApiError(message, res.status, data && data.field);
     }
     return data;
@@ -356,6 +369,8 @@
     route: '',
     listFilters: { q: '', category: '', status: '', fav: false },
     listView: storageGet('partners.view') === 'table' ? 'table' : 'cards',
+    auth: { enabled: false, authenticated: true },
+    loginShown: false,
   };
 
   function pageHead(title, sub = '', actionsHtml = '') {
@@ -468,8 +483,12 @@
     if (d && d.status === 'ok') {
       tone = 'success';
       label = 'Работает';
-      lines.push(`Программ: ${fmtNum(d.programs)}, ссылок: ${fmtNum(d.links)}`);
-      updateNavCount(num(d.programs));
+      if (d.programs !== undefined) {
+        lines.push(`Программ: ${fmtNum(d.programs)}, ссылок: ${fmtNum(d.links)}`);
+        updateNavCount(num(d.programs));
+      } else {
+        lines.push(d.auth ? 'Доступ по паролю включён' : 'Панель работает');
+      }
     } else if (d && d.status === 'error') {
       tone = 'danger';
       label = 'Ошибка';
@@ -523,6 +542,9 @@
     const onQuery = () => { if (!drawerQuery.matches) closeDrawer(); };
     if (drawerQuery.addEventListener) drawerQuery.addEventListener('change', onQuery);
     else drawerQuery.addListener(onQuery);
+    $('#logout-btn').addEventListener('click', () => logoutHere().catch(handleError));
+    $('#login-form').addEventListener('submit', (e) => onLoginSubmit(e).catch(handleError));
+    onAuthRequired = showLogin;
     $('#status-pill').addEventListener('click', async () => {
       await refreshHealth();
       if (healthTip) toast(healthTip.split('\n').join(' · '), $('#status-pill').classList.contains('b-success') ? 'info' : 'error');
@@ -531,6 +553,91 @@
       if (document.visibilityState === 'visible') refreshHealth();
     });
     refreshHealth();
+  }
+
+  // ---- password: login screen, sidebar «Выйти»
+
+  async function refreshAuth() {
+    try {
+      const st = await api.get('api/auth/status');
+      state.auth = { enabled: Boolean(st.enabled), authenticated: Boolean(st.authenticated) };
+    } catch {
+      state.auth = { enabled: false, authenticated: true };
+    }
+    paintAuthControls();
+    return state.auth;
+  }
+
+  function paintAuthControls() {
+    const btn = $('#logout-btn');
+    if (btn) btn.hidden = !state.auth.enabled;
+  }
+
+  function showLogin() {
+    state.auth.authenticated = false;
+    state.dirty = false;
+    const box = $('#login');
+    if (!box || state.loginShown) return;
+    state.loginShown = true;
+    document.querySelectorAll('dialog[open]').forEach((d) => d.close());
+    closeDrawer();
+    box.hidden = false;
+    $('#app').setAttribute('aria-hidden', 'true');
+    $('#login-error').textContent = '';
+    const input = $('#login-password');
+    input.value = '';
+    setTimeout(() => input.focus(), 30);
+  }
+
+  function hideLogin() {
+    const box = $('#login');
+    if (!box) return;
+    state.loginShown = false;
+    box.hidden = true;
+    $('#app').removeAttribute('aria-hidden');
+  }
+
+  async function onLoginSubmit(e) {
+    e.preventDefault();
+    const input = $('#login-password');
+    const errEl = $('#login-error');
+    errEl.textContent = '';
+    const password = input.value;
+    if (!password) {
+      errEl.textContent = 'Введите пароль';
+      input.focus();
+      return;
+    }
+    await busy($('#login-submit'), async () => {
+      try {
+        await api.post('api/auth/login', { password });
+      } catch (err) {
+        if (err instanceof ApiError && (err.status === 401 || err.status === 429 || err.status === 400)) {
+          errEl.textContent = err.message;
+          input.select();
+          return;
+        }
+        throw err;
+      }
+      state.auth = { enabled: true, authenticated: true };
+      paintAuthControls();
+      hideLogin();
+      invalidate();
+      toast('Вы вошли в панель', 'success', 2000);
+      refreshHealth();
+      render(); // the route the user was heading to
+    });
+  }
+
+  async function logoutHere() {
+    try {
+      await api.post('api/auth/logout');
+    } catch (err) {
+      if (!(err && err.silent)) throw err;
+    }
+    invalidate();
+    toast('Вы вышли', 'info', 2000);
+    showLogin();
   }
 
   // ======================================================================= 6. Data
@@ -625,6 +732,7 @@
   const PAGES = {};
 
   async function render() {
+    if (state.loginShown) return; // the login screen renders the route after a successful login
     const route = parseHash();
     lastHash = location.hash || '#/';
     state.route = route.page;
@@ -1284,12 +1392,16 @@
             ${THEMES.map((v) => `<button type="button" class="seg" data-action="theme" data-theme="${v}" aria-pressed="${currentTheme === v}">${THEME_LABELS[v]}</button>`).join('')}
           </div>
         </section>
+        <section class="card" id="auth-card">
+          <div class="card-head"><h2>${icon('shield')}Доступ по паролю</h2></div>
+          <div id="auth-body"></div>
+        </section>
         <section class="card about">
           <div class="card-head"><h2>${icon('info')}О панели</h2></div>
           <dl class="kv">
             <dt>Версия</dt><dd id="about-version">${esc(version || '—')}</dd>
             <dt>Хранилище</dt><dd>SQLite, файл <code>data/partners.db</code></dd>
-            <dt>Пароли</dt><dd>не хранятся и не запрашиваются</dd>
+            <dt>Пароли кабинетов</dt><dd>не хранятся — только логины</dd>
           </dl>
         </section>
       </div>`;
@@ -1325,10 +1437,127 @@
         handleError(err);
       }
     });
+    const pwField = (name, label, autocomplete) => `<label class="field" data-field="${name}"><span class="label">${esc(label)}</span><input class="input" type="password" name="${name}" autocomplete="${autocomplete}" minlength="8" maxlength="128" required><span class="field-error"></span></label>`;
+    const authBody = $('#auth-body', root);
+    let authMode = 'view'; // view | change
+    const paintAuth = () => {
+      const a = state.auth;
+      if (!a.enabled) {
+        authBody.innerHTML = `
+          <p class="small muted" style="margin:0 0 12px">Сейчас панель открыта всем, у кого есть доступ к её адресу. Включите пароль, если панель видна из сети.</p>
+          <form class="auth-form" id="auth-enable" novalidate>
+            ${pwField('password', 'Новый пароль', 'new-password')}
+            ${pwField('password2', 'Повторите пароль', 'new-password')}
+            <p class="hint" style="margin:0 0 12px">От 8 до 128 символов. Эта вкладка останется в системе, вводить пароль заново не придётся.</p>
+            <div class="auth-actions"><button type="submit" class="btn btn-primary">${icon('lock')}<span>Включить</span></button></div>
+          </form>`;
+        return;
+      }
+      authBody.innerHTML = `
+        <div class="auth-state"><span class="badge b-success"><span class="dot" aria-hidden="true"></span>Включён</span><span class="small muted">Вход по паролю обязателен для всех устройств.</span></div>
+        ${authMode === 'change' ? `
+        <form class="auth-form" id="auth-change" novalidate>
+          ${pwField('current', 'Текущий пароль', 'current-password')}
+          ${pwField('new', 'Новый пароль', 'new-password')}
+          ${pwField('new2', 'Повторите новый пароль', 'new-password')}
+          <p class="hint" style="margin:0 0 12px">После смены все другие устройства будут разлогинены.</p>
+          <div class="auth-actions"><button type="submit" class="btn btn-primary">${icon('key')}<span>Сменить пароль</span></button><button type="button" class="btn btn-secondary" data-action="auth-cancel"><span>Отмена</span></button></div>
+        </form>` : `
+        <div class="auth-actions">
+          <button type="button" class="btn btn-secondary btn-sm" data-action="auth-change">${icon('key')}<span>Сменить пароль</span></button>
+          <button type="button" class="btn btn-secondary btn-sm" data-action="auth-logout">${icon('logout')}<span>Выйти на этом устройстве</span></button>
+          <button type="button" class="btn btn-secondary btn-sm" data-action="auth-logout-all">${icon('logout')}<span>Выйти на всех устройствах</span></button>
+          <button type="button" class="btn btn-secondary btn-sm is-danger" data-action="auth-disable">${icon('x')}<span>Отключить пароль</span></button>
+        </div>
+        <p class="hint">Забыли пароль? На сервере: <code>python -m app reset-password</code>.</p>`}`;
+    };
+    const fieldError = (form, name, message) => {
+      const holder = $(`[data-field="${name}"]`, form);
+      if (holder) {
+        holder.classList.add('has-error');
+        $('.field-error', holder).textContent = message;
+        $('input', holder).focus();
+      } else {
+        toast(message, 'error');
+      }
+    };
+    const clearFieldErrors = (form) => $$('.field.has-error', form).forEach((f) => { f.classList.remove('has-error'); $('.field-error', f).textContent = ''; });
+    const checkPair = (form, a, b) => {
+      const v1 = form.elements[a].value;
+      const v2 = form.elements[b].value;
+      if (v1.length < 8) { fieldError(form, a, 'Не короче 8 символов'); return null; }
+      if (v1.length > 128) { fieldError(form, a, 'Не длиннее 128 символов'); return null; }
+      if (v1 !== v2) { fieldError(form, b, 'Пароли не совпадают'); return null; }
+      return v1;
+    };
+    root.addEventListener('submit', (e) => {
+      const form = e.target;
+      if (form.id !== 'auth-enable' && form.id !== 'auth-change') return;
+      e.preventDefault();
+      clearFieldErrors(form);
+      busy($('button[type="submit"]', form), async () => {
+        try {
+          if (form.id === 'auth-enable') {
+            const password = checkPair(form, 'password', 'password2');
+            if (password === null) return;
+            await api.post('api/auth/enable', { password });
+            state.auth = { enabled: true, authenticated: true };
+            toast('Доступ по паролю включён', 'success');
+          } else {
+            const current = form.elements.current.value;
+            if (!current) { fieldError(form, 'current', 'Введите текущий пароль'); return; }
+            const next = checkPair(form, 'new', 'new2');
+            if (next === null) return;
+            await api.post('api/auth/change', { current, new: next });
+            authMode = 'view';
+            toast('Пароль изменён', 'success');
+          }
+        } catch (err) {
+          if (err instanceof ApiError && err.field) { fieldError(form, err.field, err.message); return; }
+          throw err;
+        }
+        paintAuthControls();
+        refreshHealth();
+        paintAuth();
+      }).catch(handleError);
+    });
     onAction(root, {
       import: () => fileInput.click(),
       theme: (btn) => setTheme(btn.dataset.theme),
+      'auth-change': () => { authMode = 'change'; paintAuth(); setTimeout(() => { const f = $('#auth-change input', root); if (f) f.focus(); }, 30); },
+      'auth-cancel': () => { authMode = 'view'; paintAuth(); },
+      'auth-logout': () => logoutHere(),
+      'auth-logout-all': async () => {
+        const ok = await confirmModal({ title: 'Выйти на всех устройствах?', message: 'Все сессии будут завершены, включая эту. Войти заново можно сразу.', confirmLabel: 'Выйти везде', danger: true, confirmIcon: 'logout' });
+        if (!ok) return;
+        await api.post('api/auth/logout-all');
+        invalidate();
+        toast('Все сессии завершены', 'info');
+        showLogin();
+      },
+      'auth-disable': async () => {
+        const body = document.createElement('div');
+        body.innerHTML = `<p>Панель снова будет открыта всем, у кого есть доступ к её адресу. Все сессии будут завершены.</p>
+          <label class="field"><span class="label">Текущий пароль</span><input class="input" type="password" data-current autocomplete="current-password"></label>`;
+        const ok = await openModal({
+          title: 'Отключить пароль?',
+          body,
+          actions: [{ label: 'Отмена', value: 'cancel' }, { label: 'Отключить', value: 'ok', kind: 'danger', submit: true, icon: 'x' }],
+          onSubmit: async () => {
+            const current = $('[data-current]', body).value;
+            if (!current) throw new ApiError('Введите текущий пароль', 400);
+            await api.post('api/auth/disable', { current });
+          },
+        });
+        if (ok !== 'ok') return;
+        state.auth = { enabled: false, authenticated: true };
+        paintAuthControls();
+        refreshHealth();
+        toast('Пароль отключён', 'success');
+        paintAuth();
+      },
     });
+    paintAuth();
     try {
       const meta = await loadMeta();
       if (meta.version) $('#about-version', root).textContent = meta.version;
@@ -1360,7 +1589,10 @@
         e.returnValue = '';
       }
     });
-    render();
+    refreshAuth().then((a) => {
+      if (a.enabled && !a.authenticated) showLogin();
+      else render();
+    });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

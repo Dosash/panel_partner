@@ -1,6 +1,6 @@
 [project]
 name = "panel-partner"
-version = "1.0.0"
+version = "1.1.0"
 description = "Веб-панель для хранения партнёрских программ: что делают, условия выплат, реферальные ссылки и промокоды"
 readme = "README.md"
 license = "MIT"

@@ -2,7 +2,8 @@
 
 Schema versions are tracked with ``PRAGMA user_version``; `Database.migrate()` runs at every start
 and applies the missing steps in order. Timestamps are unix seconds (UTC). Tags are stored as a
-JSON array in ``programs.tags_json``; the API works with plain lists.
+JSON array in ``programs.tags_json``; the API works with plain lists. ``settings`` holds the
+optional password hash (`PASSWORD_SETTING`, see `app.auth`), ``sessions`` the login sessions.
 """
 from __future__ import annotations
 
@@ -13,7 +14,7 @@ from typing import Any
 
 import aiosqlite
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 STATUS_ACTIVE = "active"
 STATUS_PAUSED = "paused"
@@ -61,7 +62,23 @@ _MIGRATIONS: dict[int, list[str]] = {
         "CREATE INDEX idx_links_program ON links(program_id, sort, id)",
         "CREATE INDEX idx_programs_updated ON programs(updated_at DESC)",
     ],
+    # v1.1: optional password (scrypt hash in settings) and login sessions (sha256 of the token)
+    2: [
+        """CREATE TABLE settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )""",
+        """CREATE TABLE sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            token_hash TEXT NOT NULL UNIQUE,
+            created_at INTEGER NOT NULL,
+            expires_at INTEGER NOT NULL
+        )""",
+        "CREATE INDEX idx_sessions_expires ON sessions(expires_at)",
+    ],
 }
+
+PASSWORD_SETTING = "password_hash"
 
 
 def now() -> int:
@@ -241,3 +258,55 @@ class Database:
             except ValueError:
                 continue
         return sorted(seen, key=str.casefold)
+
+    # ------------------------------------------------------------------ settings
+
+    async def get_setting(self, key: str) -> str | None:
+        row = await self.fetchone("SELECT value FROM settings WHERE key = ?", (key,))
+        return row["value"] if row else None
+
+    async def set_setting(self, key: str, value: str) -> None:
+        await self.conn.execute(
+            "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, value),
+        )
+        await self.conn.commit()
+
+    async def delete_setting(self, key: str) -> None:
+        await self.conn.execute("DELETE FROM settings WHERE key = ?", (key,))
+        await self.conn.commit()
+
+    # ------------------------------------------------------------------ sessions
+
+    async def create_session(self, token_hash: str, ttl: int, *, ts: int | None = None) -> None:
+        current = ts if ts is not None else now()
+        await self.conn.execute(
+            "INSERT INTO sessions (token_hash, created_at, expires_at) VALUES (?, ?, ?)",
+            (token_hash, current, current + ttl),
+        )
+        await self.conn.execute("DELETE FROM sessions WHERE expires_at <= ?", (current,))
+        await self.conn.commit()
+
+    async def session_valid(self, token_hash: str, *, ts: int | None = None) -> bool:
+        current = ts if ts is not None else now()
+        row = await self.fetchone(
+            "SELECT 1 FROM sessions WHERE token_hash = ? AND expires_at > ?", (token_hash, current)
+        )
+        return row is not None
+
+    async def delete_session(self, token_hash: str) -> None:
+        await self.conn.execute("DELETE FROM sessions WHERE token_hash = ?", (token_hash,))
+        await self.conn.commit()
+
+    async def delete_sessions(self, *, keep_hash: str | None = None) -> int:
+        """Every session except `keep_hash` (the one of the current client)."""
+        if keep_hash is None:
+            cur = await self.conn.execute("DELETE FROM sessions")
+        else:
+            cur = await self.conn.execute("DELETE FROM sessions WHERE token_hash <> ?", (keep_hash,))
+        await self.conn.commit()
+        return cur.rowcount
+
+    async def sessions_count(self) -> int:
+        row = await self.fetchone("SELECT COUNT(*) AS n FROM sessions WHERE expires_at > ?", (now(),))
+        return int(row["n"]) if row else 0

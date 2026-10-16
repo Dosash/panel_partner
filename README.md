@@ -23,14 +23,14 @@
   </tr>
   <tr>
     <td align="center" valign="top"><a href="docs/screenshots/edit.png"><img src="docs/screenshots/edit.png" alt="Партнёрки — Редактирование" width="260"></a><br><sub>Редактирование</sub></td>
-    <td align="center" valign="top"><a href="docs/screenshots/settings.png"><img src="docs/screenshots/settings.png" alt="Партнёрки — Настройки и бэкап" width="260"></a><br><sub>Настройки и бэкап</sub></td>
-    <td></td>
+    <td align="center" valign="top"><a href="docs/screenshots/settings.png"><img src="docs/screenshots/settings.png" alt="Партнёрки — Настройки и бэкап" width="260"></a><br><sub>Настройки, бэкап и пароль</sub></td>
+    <td align="center" valign="top"><a href="docs/screenshots/login.png"><img src="docs/screenshots/login.png" alt="Партнёрки — Вход по паролю" width="260"></a><br><sub>Вход по паролю (если включён)</sub></td>
   </tr>
 </table>
 
-> **Пароли в панели не храните.** Для доступа к кабинетам есть поле «Логин» — только логин или e-mail.
-> Пароли держите в менеджере паролей. У панели нет собственной авторизации: не открывайте её в интернет
-> без nginx с паролем или VPN.
+> **Пароли партнёрок в панели не храните.** Для доступа к кабинетам есть поле «Логин» — только логин или
+> e-mail. Пароли держите в менеджере паролей. Саму панель можно закрыть паролем («Настройки → Доступ по
+> паролю», см. ниже); если она смотрит в интернет, ставьте её за https и/или VPN.
 
 ## Стек
 
@@ -83,6 +83,32 @@ docker ps --filter name=partner-panel --format '{{.Names}} {{.Status}}'   # Up �
 | `DB_PATH` | `data/partners.db` | Файл SQLite. В Docker переопределяется на `/app/data/partners.db`. |
 | `LOG_LEVEL` | `INFO` | `DEBUG` / `INFO` / `WARNING` / `ERROR`. |
 
+## Доступ по паролю
+
+По умолчанию пароля нет — панель открыта всем, кто может открыть её адрес. Включить защиту можно прямо в
+панели: **Настройки → Доступ по паролю → Новый пароль** (8–128 символов) → «Включить». Вкладка, из которой
+вы включили пароль, остаётся в системе; остальные устройства увидят экран входа. Там же — смена пароля
+(все другие устройства разлогиниваются), «Выйти на этом устройстве», «Выйти на всех устройствах» и
+«Отключить пароль» (нужен текущий пароль). Сессия живёт 30 дней.
+
+Забыли пароль — на сервере панели:
+
+```bash
+uv run python -m app reset-password
+```
+
+в Docker:
+
+```bash
+docker compose exec partner-panel .venv/bin/python -m app reset-password
+```
+
+Команда отключает пароль и завершает все сессии; перезапуск не нужен. Пароль хранится только в виде
+scrypt-хэша в `data/partners.db`, сессии — как sha256 случайного токена; cookie `pp_session` —
+`HttpOnly`, `SameSite=Strict`, `Secure` при https (прямое или через `X-Forwarded-Proto` от прокси на этой же
+машине). После 5 неверных попыток с одного IP вход блокируется на 10 минут. Пароль не защищает от перехвата
+трафика: в интернет выводите панель только по https (или через VPN), как в примере ниже.
+
 ## За nginx с префиксом
 
 Панель сама обслуживает всё под `WEB_PREFIX` — прокси **не должен** срезать префикс. Пример для
@@ -97,8 +123,6 @@ server {
     add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:" always;
 
     location /partners/ {
-        auth_basic "Partners";
-        auth_basic_user_file /etc/nginx/.htpasswd;
         proxy_pass http://127.0.0.1:8097;      # без завершающего / — префикс остаётся в URI
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-Proto $scheme;
@@ -111,12 +135,21 @@ server {
 
 ## API
 
-Всё под `<WEB_PREFIX>/api`, JSON, без авторизации (как и сама панель). Ошибки — `{"error": "…"}` по-русски,
-у ошибок валидации ещё `"field"` с именем поля.
+Всё под `<WEB_PREFIX>/api`, JSON. Ошибки — `{"error": "…"}` по-русски, у ошибок валидации ещё `"field"`
+с именем поля. Любой не-GET запрос должен нести заголовок `X-Requested-With: fetch` (иначе 403). Пока пароль
+включён, всё, кроме `GET /api/health`, `GET /api/auth/status` и `POST /api/auth/login`, требует cookie
+сессии — иначе `401 {"error": "Нужно войти", "auth_required": true}`.
 
 | Метод и путь | Что делает |
 |---|---|
-| `GET /api/health` | `{status, version, programs, links}` — для мониторинга и healthcheck |
+| `GET /api/health` | `{status, version, auth, programs, links}` — для мониторинга и healthcheck; при включённом пароле счётчиков нет |
+| `GET /api/auth/status` | `{enabled, authenticated}` |
+| `POST /api/auth/login` | `{password}` → cookie сессии; 401 при неверном, 429 при переборе |
+| `POST /api/auth/logout` | выйти на этом устройстве |
+| `POST /api/auth/logout-all` | завершить все сессии |
+| `POST /api/auth/enable` | `{password}` — включить пароль (только пока он выключен) |
+| `POST /api/auth/change` | `{current, new}` — сменить пароль, остальные сессии завершаются |
+| `POST /api/auth/disable` | `{current}` — отключить пароль |
 | `GET /api/meta` | версия, `hub_url`, категории, теги, модели выплат, статусы |
 | `GET /api/programs` | все программы со ссылками |
 | `POST /api/programs` | создать (201) |
@@ -136,7 +169,7 @@ server {
 Пример:
 
 ```bash
-curl -X POST http://127.0.0.1:8097/api/programs -H 'Content-Type: application/json' -d '{
+curl -X POST http://127.0.0.1:8097/api/programs -H 'Content-Type: application/json' -H 'X-Requested-With: fetch' -d '{
   "name": "Example Partners", "category": "Хостинг", "payout_model": "RevShare",
   "payout_terms": "40% RevShare пожизненно", "website_url": "https://partners.example.com",
   "tags": ["хостинг"], "links": [{"title": "Основная", "url": "https://example.com/?ref=abc", "promo_code": "PROMO2026"}]
@@ -166,9 +199,10 @@ app/__main__.py     запуск: конфиг, БД (+миграции), aiohtt
 app/config.py       .env → Config (WEB_HOST, WEB_PORT, WEB_PREFIX, DB_PATH, HUB_URL)
 app/db.py           схема SQLite, миграции, запросы
 app/programs.py     валидация полей программы и ссылок
-app/web/            aiohttp-приложение: api.py (JSON API), pages.py (index.html + редиректы), urls.py (префикс)
+app/auth.py         scrypt-хэш пароля, токены сессий, защита от перебора
+app/web/            aiohttp-приложение: api.py (JSON API), auth.py (пароль, сессии, CSRF), pages.py (index.html + редиректы), urls.py (префикс)
 app/web/static/     index.html, app.js, style.css, favicon.svg — панель без сборки
-tests/              pytest (API, префикс, конфиг, БД)
+tests/              pytest (API, доступ по паролю, префикс, конфиг, БД)
 docs/screenshots/   скриншоты для README (демо-данные)
 data/               база (создаётся сама; в git не попадает)
 ```

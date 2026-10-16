@@ -1,6 +1,8 @@
 """JSON API under ``<prefix>/api``.
 
-* ``GET  /api/health``          — ``{status, version, programs, links}`` (for the hub and Docker)
+* ``GET  /api/health``          — ``{status, version, auth, programs, links}`` (for the hub and Docker);
+  with the password enabled the counters are left out (the endpoint is open)
+* ``/api/auth/*``               — see `app.web.auth`
 * ``GET  /api/meta``            — version, hub_url, categories, tags, payout models, statuses
 * ``GET  /api/programs``        — all programs with their links
 * ``POST /api/programs``        — create (201, the created program)
@@ -21,8 +23,9 @@ from typing import Any
 from aiohttp import web
 
 from app import __version__
-from app.db import PAYOUT_MODELS, STATUSES, Database
+from app.db import PASSWORD_SETTING, PAYOUT_MODELS, STATUSES, Database
 from app.programs import ValidationError, clean_patch, clean_program, clean_timestamp
+from app.web.auth import AuthError
 from app.web.keys import CONFIG_KEY, DB_KEY
 from app.web.urls import is_api_path, local_path, prefixed_router
 
@@ -58,6 +61,9 @@ async def error_middleware(request: web.Request, handler: Any) -> web.StreamResp
         return await handler(request)
     except ValidationError as exc:
         return json_error(str(exc), 400, exc.field)
+    except AuthError as exc:
+        body: dict[str, Any] = {"error": str(exc), **exc.extra}
+        return web.json_response(body, status=exc.status)
     except web.HTTPException as exc:
         if exc.status < 400:
             raise
@@ -97,14 +103,18 @@ async def read_json(request: web.Request) -> Any:
 # ------------------------------------------------------------------ handlers
 
 async def health(request: web.Request) -> web.Response:
+    db = _db(request)
     try:
-        counts = await _db(request).counts()
+        auth = await db.get_setting(PASSWORD_SETTING) is not None
+        counts = None if auth else await db.counts()
     except Exception:
         log.exception("Health: the database cannot be read")
         return web.json_response({"status": "error", "version": __version__,
                                   "problems": ["База данных недоступна"]}, status=503)
-    return web.json_response({"status": "ok", "version": __version__,
-                              "programs": counts["programs"], "links": counts["links"]})
+    body: dict[str, Any] = {"status": "ok", "version": __version__, "auth": auth}
+    if counts is not None:  # the endpoint is open: no numbers while the panel is password-protected
+        body.update(programs=counts["programs"], links=counts["links"])
+    return web.json_response(body)
 
 
 async def meta(request: web.Request) -> web.Response:

@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from aiohttp import CookieJar
 from aiohttp.test_utils import TestClient, TestServer
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -25,17 +26,26 @@ def make_config(**kwargs) -> Config:
     return Config(**kwargs)
 
 
+# Every non-GET API request needs the CSRF header; the cookie jar must accept the IP host of the
+# test server (aiohttp drops cookies for IP addresses unless `unsafe`).
+CSRF_HEADERS = {"X-Requested-With": "fetch"}
+
+
+def make_client(app, *, csrf: bool = True) -> TestClient:
+    return TestClient(TestServer(app), headers=CSRF_HEADERS if csrf else None, cookie_jar=CookieJar(unsafe=True))
+
+
 @pytest.fixture
 async def client(db):
     app = create_web_app(db, make_config())
-    async with TestClient(TestServer(app)) as c:
+    async with make_client(app) as c:
         yield c
 
 
 @pytest.fixture
 async def prefixed_client(db):
     app = create_web_app(db, make_config(web_prefix="/partners", hub_url="/"))
-    async with TestClient(TestServer(app)) as c:
+    async with make_client(app) as c:
         yield c
 
 

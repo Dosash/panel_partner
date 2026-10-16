@@ -49,6 +49,7 @@
       </nav>
       <div class="sidebar-bottom">
         <button type="button" class="btn btn-ghost btn-sm btn-icon" id="theme-toggle" aria-label="Тема оформления"></button>
+        <button type="button" class="btn btn-ghost btn-sm" id="logout-btn" hidden><span data-icon="logout"></span><span>Выйти</span></button>
         <span class="version" id="app-version"></span>
       </div>
     </aside>
@@ -66,6 +67,25 @@
       </header>
       <main id="view" class="content" tabindex="-1"></main>
     </div>
+  </div>
+
+  <div id="login" class="login-screen" hidden>
+    <form class="login-card card" id="login-form" novalidate>
+      <div class="login-head">
+        <span class="product-logo" data-icon="handshake"></span>
+        <div>
+          <h1 class="login-title">Вход в панель «Партнёрки»</h1>
+          <p class="login-msg">Панель защищена паролем.</p>
+        </div>
+      </div>
+      <label class="field">
+        <span class="label">Пароль</span>
+        <input class="input" type="password" id="login-password" name="password" autocomplete="current-password" required>
+      </label>
+      <p class="field-error" id="login-error" role="alert"></p>
+      <button class="btn btn-primary btn-block" type="submit" id="login-submit"><span>Войти</span></button>
+      <p class="hint">Забыли пароль? На сервере панели выполните <code>python -m app reset-password</code> (в Docker: <code>docker compose exec partner-panel .venv/bin/python -m app reset-password</code>) — пароль отключится.</p>
+    </form>
   </div>
 
   <div id="toasts" class="toasts" aria-live="polite"></div>
